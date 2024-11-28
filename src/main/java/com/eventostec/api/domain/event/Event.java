@@ -19,14 +19,13 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Event {
-
     @Id
     @GeneratedValue
     private UUID id;
 
     private String title;
-    private String desciption;
-    private String imageUrl;
+    private String description;
+    private String imgUrl;
     private String eventUrl;
     private Boolean remote;
     private Date date;
