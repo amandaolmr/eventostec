@@ -1,22 +1,29 @@
 package com.eventostec.api.domain.services;
 
 import com.eventostec.api.domain.event.Event;
+import com.eventostec.api.domain.event.EventAddressProjection;
 import com.eventostec.api.domain.event.EventRequestDTO;
+import com.eventostec.api.domain.event.EventResponseDTO;
 import com.eventostec.api.repositories.EventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetUrlRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
 
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -34,6 +41,9 @@ public class EventService {
     @Value("${aws.bucket.name}")
     private String bucketName;
 
+    private final EventRepository repository;
+    private final AddressService addressService;
+
     public Event createEvent(EventRequestDTO data){
 
         String imgUrl = null;
@@ -50,6 +60,10 @@ public class EventService {
         newEvent.setRemote(data.remote());
 
         eventRepository.save(newEvent);
+
+        if (Boolean.FALSE.equals(data.remote())) {
+            this.addressService.createAddress(data, newEvent);
+        }
 
         return newEvent;
     }
@@ -73,4 +87,45 @@ public class EventService {
             return "";
         }
     }
+
+    public List<EventResponseDTO> getUpcomingEvents(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<EventAddressProjection> eventsPage = this.repository.findUpcomingEvents(new Date(), pageable);
+        return eventsPage.map(event -> new EventResponseDTO(
+                        event.getId(),
+                        event.getTitle(),
+                        event.getDescription(),
+                        event.getDate(),
+                        event.getCity() != null ? event.getCity() : "",
+                        event.getUf() != null ? event.getUf() : "",
+                        event.getRemote(),
+                        event.getEventUrl(),
+                        event.getImgUrl())
+                )
+                .stream().toList();
+    }
+
+    public List<EventResponseDTO> getFilteredEvents(int page, int size, String city, String uf, Date startDate, Date endDate){
+        city = (city != null) ? city : "";
+        uf = (uf != null) ? uf : "";
+        startDate = (startDate != null) ? startDate : new Date(0);
+        endDate = (endDate != null) ? endDate : new Date();
+
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<EventAddressProjection> eventsPage = this.repository.findFilteredEvents(city, uf, startDate, endDate, pageable);
+        return eventsPage.map(event -> new EventResponseDTO(
+                        event.getId(),
+                        event.getTitle(),
+                        event.getDescription(),
+                        event.getDate(),
+                        event.getCity() != null ? event.getCity() : "",
+                        event.getUf() != null ? event.getUf() : "",
+                        event.getRemote(),
+                        event.getEventUrl(),
+                        event.getImgUrl())
+                )
+                .stream().toList();
+    }
+
 }
